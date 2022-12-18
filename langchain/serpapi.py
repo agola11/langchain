@@ -4,6 +4,7 @@ Heavily borrowed from https://github.com/ofirpress/self-ask
 """
 import os
 import sys
+import time
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Extra, root_validator
@@ -94,6 +95,7 @@ class SerpAPIWrapper(BaseModel):
             toret = res["organic_results"][0]["snippet"]
         else:
             toret = "No good search result found"
+        print(f"TOOL timestamp: {time.time()}, id: 1, class: {self.__class__.__name__}, query: {query}, result: {toret}")
         return toret
 
 

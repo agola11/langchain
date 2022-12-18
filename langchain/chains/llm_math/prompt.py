@@ -16,6 +16,11 @@ ${{Output of your code}}
 ```
 Answer: ${{Answer}}
 
+Otherwise, use this simpler format:
+
+Question: ${{Question without hard calculation}}
+Answer: ${{Answer}}
+
 Begin.
 
 Question: What is 37593 * 67?

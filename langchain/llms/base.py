@@ -1,5 +1,6 @@
 """Base interface for large language models to expose."""
 import json
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Union
@@ -45,7 +46,9 @@ class LLM(BaseModel, ABC):
     ) -> LLMResult:
         """Run the LLM on the given prompt and input."""
         if langchain.llm_cache is None:
-            return self._generate(prompts, stop=stop)
+            output = self._generate(prompts, stop=stop)
+            print(f"LLM timestamp: {time.time()}, id: 1, class: {self.__class__.__name__}, prompts: {prompts}, output: {output}")
+            return output
         params = self._llm_dict()
         params["stop"] = stop
         llm_string = str(sorted([(k, v) for k, v in params.items()]))
@@ -107,6 +110,7 @@ class LLM(BaseModel, ABC):
                 else:
                     return cache_val[0].text
         return_val = self._call(prompt, stop=stop)
+        print(f"TEST LOGGING id: 1, class: {self.__class__.__name__}, prompt: {prompt}, output: {return_val}")
         if langchain.cache is not None:
             langchain.llm_cache.update(prompt, llm_string, return_val)
         return return_val

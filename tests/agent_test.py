@@ -58,11 +58,12 @@ def main():
         )
     ]
 
-    print(llm.generate([PROMPT], stop=["```output"]))
+    # print(llm.generate([PROMPT], stop=["```output"]))
 
-    agent = initialize_agent(tools, llm, agent="zero-shot-react-description", verbose=True)
+    agent = initialize_agent(tools, llm, agent="zero-shot-react-description", verbose=False)
+    agent.run("Who won the US Open men's tennis final in 2019? What is his age raised to the second power??")
     #agent.run("Who won the US Open men's tennis final in 2019? What is the next prime number after his age?")
-    agent.run("Who won the US Open men's tennis final in 2022? What is the next prime number after his age?")
+    #agent.run("Who won the US Open men's tennis final in 2022? What is the next prime number after his age?")
 
 
 

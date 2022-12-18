@@ -1,4 +1,5 @@
 """Chain that interprets a prompt and executes python code to do math."""
+import time
 from typing import Dict, List
 
 from pydantic import BaseModel, Extra
@@ -68,4 +69,5 @@ class LLMMathChain(Chain, BaseModel):
             answer = t
         else:
             raise ValueError(f"unknown format from LLM: {t}")
+        print(f"TOOL timestamp: {time.time()}, id: 1, class: {self.__class__.__name__}, inputs: {inputs}, answer: {answer}")
         return {self.output_key: answer}
