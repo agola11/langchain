@@ -1,5 +1,6 @@
 """Wrapper around OpenAI APIs."""
-from typing import Any, Dict, List, Mapping, Optional
+import sys
+from typing import Any, Dict, Generator, List, Mapping, Optional
 
 from pydantic import BaseModel, Extra, Field, root_validator
 
@@ -159,6 +160,33 @@ class OpenAI(LLM, BaseModel):
             generations=generations, llm_output={"token_usage": token_usage}
         )
 
+    def stream(self, prompt: str) -> Generator:
+        """Call OpenAI with streaming flag and return the resulting generator.
+
+        BETA: this is a beta feature while we figure out the right abstraction.
+        Once that happens, this interface could change.
+
+        Args:
+            prompt: The prompts to pass into the model.
+
+        Returns:
+            A generator representing the stream of tokens from OpenAI.
+
+        Example:
+            .. code-block:: python
+
+                generator = openai.stream("Tell me a joke.")
+                for token in generator:
+                    yield token
+        """
+        params = self._default_params
+        if params["best_of"] != 1:
+            raise ValueError("OpenAI only supports best_of == 1 for streaming")
+        params["stream"] = True
+        generator = self.client.create(model=self.model_name, prompt=prompt, **params)
+
+        return generator
+
     @property
     def _identifying_params(self) -> Mapping[str, Any]:
         """Get the identifying parameters."""
@@ -185,6 +213,28 @@ class OpenAI(LLM, BaseModel):
                 response = openai("Tell me a joke.")
         """
         return self.generate([prompt], stop=stop).generations[0][0].text
+
+    def get_num_tokens(self, text: str) -> int:
+        """Calculate num tokens with tiktoken package."""
+        # tiktoken NOT supported for Python 3.8 or below
+        if sys.version_info[1] <= 8:
+            return super().get_num_tokens(text)
+        try:
+            import tiktoken
+        except ImportError:
+            raise ValueError(
+                "Could not import tiktoken python package. "
+                "This is needed in order to calculate get_num_tokens. "
+                "Please it install it with `pip install tiktoken`."
+            )
+        # create a GPT-3 encoder instance
+        enc = tiktoken.get_encoding("gpt2")
+
+        # encode the text using the GPT-3 encoder
+        tokenized_text = enc.encode(text)
+
+        # calculate the number of tokens in the encoded text
+        return len(tokenized_text)
 
     def modelname_to_contextsize(self, modelname: str) -> int:
         """Calculate the maximum number of tokens possible to generate for a model.
