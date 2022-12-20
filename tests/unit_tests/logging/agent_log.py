@@ -35,7 +35,7 @@ def main():
     # agent.run("Who won the US Open men's tennis final in 2022? What is the next prime number after his age?")
 
     # TODO: need to create log retrieval functions to do this so we don't need to grab the session directly
-    session = SqliteLogger().session
+    session = SqliteLogger()._session
     stmt = select(ChainRun).where(ChainRun.id == 1).options(joinedload(ChainRun.child_llm_runs),
                                                             joinedload(ChainRun.child_chain_runs).joinedload(
                                                                 ChainRun.child_llm_runs),
@@ -50,6 +50,7 @@ def main():
                                                             joinedload(ChainRun.child_tool_runs))
     zeroshot_chain = session.scalars(stmt).unique().one()
     print_run(zeroshot_chain, "")
+
 
 if __name__ == "__main__":
     main()

@@ -255,103 +255,114 @@ class SqliteLogger(BaseLogger):
         if cls._instance is None:
             print('Creating the object')
             cls._instance = super(SqliteLogger, cls).__new__(cls)
-            cls._instance.db = create_engine("sqlite://", echo=False, future=True)
-            Base.metadata.create_all(cls._instance.db)
-            cls._instance.stack = []
-            cls._instance.session = Session(cls._instance.db)
-            cls._instance.execution_order = 1
+            cls._instance._db = create_engine("sqlite://", echo=False, future=True)
+            Base.metadata.create_all(cls._instance._db)
+            cls._instance._stack = []
+            cls._instance._session = Session(cls._instance._db)
+            cls._instance._execution_order = 1
         return cls._instance
+
+    def _log_run_start(self, run: Union[LLMRun, ChainRun, ToolRun]) -> None:
+        """Log the start of a run."""
+
+        if self._stack:
+            if not (isinstance(self._stack[-1], ChainRun) or isinstance(self._stack[-1], ToolRun)):
+                self._session.rollback()
+                raise LoggerException("Nested LLMRun can only be logged inside a ChainRun or ToolRun")
+            self._stack[-1].child_llm_runs.append(run)
+        self._stack.append(run)
+        self._session.add(run)
 
     def log_llm_run_start(self, serialized: Dict[str, Any], prompts: List[str], **extra: str) -> None:
         """Log the start of an LLM run."""
 
         llm_run = LLMRun(serialized=serialized, prompts={"prompts": prompts}, extra=extra)
-        if self.stack:
-            if not (isinstance(self.stack[-1], ChainRun) or isinstance(self.stack[-1], ToolRun)):
-                self.session.rollback()
+        if self._stack:
+            if not (isinstance(self._stack[-1], ChainRun) or isinstance(self._stack[-1], ToolRun)):
+                self._session.rollback()
                 raise LoggerException("Nested LLMRun can only be logged inside a ChainRun or ToolRun")
-            self.stack[-1].child_llm_runs.append(llm_run)
-        self.stack.append(llm_run)
-        self.session.add(llm_run)
+            self._stack[-1].child_llm_runs.append(llm_run)
+        self._stack.append(llm_run)
+        self._session.add(llm_run)
 
     def log_llm_run_end(self, response: Dict[str, Any], error=None) -> None:
         """Log the end of an LLM run."""
 
-        if not self.stack:
+        if not self._stack:
             raise LoggerException("No LLMRun found to be logged")
 
-        llm_run = self.stack.pop()
+        llm_run = self._stack.pop()
         if not isinstance(llm_run, LLMRun):
-            self.session.rollback()
+            self._session.rollback()
             raise LoggerException("LLMRun end can only be logged after a LLMRun start")
         llm_run.response = response
         llm_run.error = error
         llm_run.end_time = datetime.datetime.utcnow()
-        llm_run.execution_order = self.execution_order
-        self.execution_order += 1
-        if not self.stack:
-            self.session.commit()
-            self.execution_order = 1
+        llm_run.execution_order = self._execution_order
+        self._execution_order += 1
+        if not self._stack:
+            self._session.commit()
+            self._execution_order = 1
 
     def log_chain_run_start(self, serialized: Dict[str, Any], inputs: Dict[str, Any], **extra: str) -> None:
         """Log the start of a chain run."""
 
         chain_run = ChainRun(serialized=serialized, inputs=inputs, extra=extra)
-        if self.stack:
-            if not (isinstance(self.stack[-1], ChainRun) or isinstance(self.stack[-1], ToolRun)):
-                self.session.rollback()
+        if self._stack:
+            if not (isinstance(self._stack[-1], ChainRun) or isinstance(self._stack[-1], ToolRun)):
+                self._session.rollback()
                 raise LoggerException("Nested ChainRun can only be logged inside a ChainRun or ToolRun")
-            self.stack[-1].child_chain_runs.append(chain_run)
-        self.stack.append(chain_run)
-        self.session.add(chain_run)
+            self._stack[-1].child_chain_runs.append(chain_run)
+        self._stack.append(chain_run)
+        self._session.add(chain_run)
 
     def log_chain_run_end(self, outputs: Dict[str, Any], error=None) -> None:
         """Log the end of a chain run."""
 
-        if not self.stack:
+        if not self._stack:
             raise LoggerException("No ChainRun found to be logged")
 
-        chain_run = self.stack.pop()
+        chain_run = self._stack.pop()
         if not isinstance(chain_run, ChainRun):
-            self.session.rollback()
+            self._session.rollback()
             raise LoggerException("ChainRun end can only be logged after a ChainRun start")
         chain_run.outputs = outputs
         chain_run.error = error
         chain_run.end_time = datetime.datetime.utcnow()
-        chain_run.execution_order = self.execution_order
-        self.execution_order += 1
-        if not self.stack:
-            self.session.commit()
-            self.execution_order = 1
+        chain_run.execution_order = self._execution_order
+        self._execution_order += 1
+        if not self._stack:
+            self._session.commit()
+            self._execution_order = 1
 
     def log_tool_run_start(self, serialized: Dict[str, Any], action: str, inputs: Dict[str, Any], **extra: str) -> None:
         """Log the start of a tool run."""
 
         tool_run = ToolRun(serialized=serialized, action=action, inputs=inputs, extra=extra)
-        if self.stack:
-            if not (isinstance(self.stack[-1], ChainRun) or isinstance(self.stack[-1], ToolRun)):
-                self.session.rollback()
+        if self._stack:
+            if not (isinstance(self._stack[-1], ChainRun) or isinstance(self._stack[-1], ToolRun)):
+                self._session.rollback()
                 raise LoggerException("Nested ToolRun can only be logged inside a ChainRun or ToolRun")
-            self.stack[-1].child_tool_runs.append(tool_run)
-        self.stack.append(tool_run)
-        self.session.add(tool_run)
+            self._stack[-1].child_tool_runs.append(tool_run)
+        self._stack.append(tool_run)
+        self._session.add(tool_run)
 
     def log_tool_run_end(self, outputs: Dict[str, Any], error=None) -> None:
         """Log the end of a tool run."""
 
-        if not self.stack:
+        if not self._stack:
             raise LoggerException("No ToolRun found to be logged")
 
-        tool_run = self.stack.pop()
+        tool_run = self._stack.pop()
         if not isinstance(tool_run, ToolRun):
-            self.session.rollback()
+            self._session.rollback()
             raise LoggerException("ToolRun end can only be logged after a ToolRun start")
         tool_run.outputs = outputs
         tool_run.error = error
         tool_run.end_time = datetime.datetime.utcnow()
-        tool_run.execution_order = self.execution_order
-        self.execution_order += 1
-        if not self.stack:
-            self.session.commit()
-            self.execution_order = 1
+        tool_run.execution_order = self._execution_order
+        self._execution_order += 1
+        if not self._stack:
+            self._session.commit()
+            self._execution_order = 1
 
