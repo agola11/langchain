@@ -1,6 +1,5 @@
 from langchain.agents import initialize_agent, Tool
 from langchain.llms import OpenAI
-# Load the tool configs that are needed.
 from langchain import LLMMathChain, SerpAPIWrapper
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import declarative_mixin

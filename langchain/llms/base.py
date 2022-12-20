@@ -111,7 +111,6 @@ class LLM(BaseModel, ABC):
                 else:
                     return cache_val[0].text
         return_val = self._call(prompt, stop=stop)
-        print(f"TEST LOGGING id: 1, class: {self.__class__.__name__}, prompt: {prompt}, output: {return_val}")
         if langchain.cache is not None:
             langchain.llm_cache.update(prompt, llm_string, return_val)
         return return_val
