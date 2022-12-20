@@ -1,5 +1,5 @@
 """Base interface that all chains should implement."""
-import time
+from langchain.logging import get_logger
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
@@ -105,8 +105,9 @@ class Chain(BaseModel, ABC):
             print(
                 f"\n\n\033[1m> Entering new {self.__class__.__name__} chain...\033[0m"
             )
+        get_logger().log_chain_run_start({"name": self.__class__.__name__}, inputs)
         outputs = self._call(inputs)
-        print(f"CHAIN timestamp: {time.time()}, id: 1, class: {self.__class__.__name__}, inputs: {inputs}, outputs: {outputs}")
+        get_logger().log_chain_run_end({"outputs": outputs})
         if self.verbose:
             print(f"\n\033[1m> Finished {self.__class__.__name__} chain.\033[0m")
         self._validate_outputs(outputs)

@@ -1,10 +1,13 @@
+from langchain.logging.base import BaseLogger
 from sqlalchemy import Column, ForeignKey, Integer, Table, DateTime, String, Boolean
 from sqlalchemy.orm import declarative_base, relationship
-from typing import Union
+from typing import Union, Any, Dict, List
 
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import declarative_mixin
 import datetime
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 Base = declarative_base()
 
@@ -16,9 +19,10 @@ Base = declarative_base()
 
 @declarative_mixin
 class RunMixin:
-    run_date = Column(DateTime, default=datetime.datetime.utcnow)
-    success = Column(Boolean, default=True)
-    extra = Column(JSON, default={})
+    start_time = Column(DateTime, default=datetime.datetime.utcnow)
+    end_time = Column(DateTime, default=datetime.datetime.utcnow)
+    extra = Column(JSON, default=None)
+    error = Column(JSON, default=None)
     execution_order = Column(Integer, default=1)
     serialized = Column(JSON)
 
@@ -37,7 +41,7 @@ class LLMRun(Base, RunMixin):
     tool_run = relationship("ToolRun", back_populates="child_llm_runs")
 
     def __repr__(self):
-        return f"<LLMRun(id={self.id}, prompts={self.prompts}, response={self.response}, execution_order={self.execution_order})>"
+        return f"<LLMRun(serialized={self.serialized}, execution_order={self.execution_order}, id={self.id}, prompts={self.prompts}, response={self.response})>"
 
 
 ct_association_table = Table(
@@ -71,14 +75,14 @@ class ChainRun(Base, RunMixin):
     parent_tool_run = relationship("ToolRun", secondary=tc_association_table, back_populates="child_chain_runs")
 
     def __repr__(self):
-        return f"<ChainRun(id={self.id}, inputs={self.inputs}, outputs={self.outputs}, execution_order={self.execution_order})>"
+        return f"<ChainRun(serialized={self.serialized}, execution_order={self.execution_order}, id={self.id}, inputs={self.inputs}, outputs={self.outputs})>"
 
 
 class ToolRun(Base, RunMixin):
     __tablename__ = "tool_runs"
 
     id = Column(Integer, primary_key=True)
-    tool_action = Column(String)
+    action = Column(String)
     inputs = Column(JSON)
     outputs = Column(JSON)
 
@@ -91,16 +95,14 @@ class ToolRun(Base, RunMixin):
     parent_chain_run = relationship("ChainRun", secondary=ct_association_table, back_populates="child_tool_runs")
 
     def __repr__(self):
-        return f"<ToolRun(id={self.id}, tool_action={self.tool_action}, inputs={self.inputs}, outputs={self.outputs}, execution_order={self.execution_order})>"
+        return f"<ToolRun(serialized={self.serialized}, execution_order={self.execution_order}, inputs={self.inputs}, outputs={self.outputs})>"
 
 
 def main() -> None:
-    from sqlalchemy import create_engine
     # engine = create_engine("sqlite:///log.db", echo=True, future=True) # Persistent
     engine = create_engine("sqlite://", echo=False, future=True)  # In-Memory
     Base.metadata.create_all(engine)
 
-    from sqlalchemy.orm import Session
     with Session(engine) as session:
         zeroshot_run = ChainRun(
             inputs={"text": "ZeroShot input"},
@@ -167,21 +169,21 @@ def main() -> None:
             ],
             child_tool_runs=[
                 ToolRun(
-                    tool_action="SEARCH",
+                    action="SEARCH",
                     inputs={"text": "Search input1"},
                     outputs={"response": "Search output1"},
                     serialized={"name": "SerpAPIWrapper"},
                     execution_order=3,
                 ),
                 ToolRun(
-                    tool_action="SEARCH",
+                    action="SEARCH",
                     inputs={"text": "Search input2"},
                     outputs={"response": "Search output2"},
                     serialized={"name": "SerpAPIWrapper"},
                     execution_order=6,
                 ),
                 ToolRun(
-                    tool_action="CALCULATOR",
+                    action="CALCULATOR",
                     inputs={"text": "Calculator input1"},
                     outputs={"response": "Calculator output1"},
                     serialized={"name": "LLMMathChain"},
@@ -239,4 +241,117 @@ def print_run(run: Union[LLMRun, ChainRun, ToolRun], tabs: str) -> None:
 if __name__ == "__main__":
     main()
 
+
+class LoggerException(Exception):
+    """Base class for exceptions in logging module."""
+
+
+class SqliteLogger(BaseLogger):
+    """A logger that stores the logs in a sqlite database."""
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            print('Creating the object')
+            cls._instance = super(SqliteLogger, cls).__new__(cls)
+            cls._instance.db = create_engine("sqlite://", echo=False, future=True)
+            Base.metadata.create_all(cls._instance.db)
+            cls._instance.stack = []
+            cls._instance.session = Session(cls._instance.db)
+            cls._instance.execution_order = 1
+        return cls._instance
+
+    def log_llm_run_start(self, serialized: Dict[str, Any], prompts: List[str], **extra: str) -> None:
+        """Log the start of an LLM run."""
+
+        llm_run = LLMRun(serialized=serialized, prompts={"prompts": prompts}, extra=extra)
+        if self.stack:
+            if not (isinstance(self.stack[-1], ChainRun) or isinstance(self.stack[-1], ToolRun)):
+                self.session.rollback()
+                raise LoggerException("Nested LLMRun can only be logged inside a ChainRun or ToolRun")
+            self.stack[-1].child_llm_runs.append(llm_run)
+        self.stack.append(llm_run)
+        self.session.add(llm_run)
+
+    def log_llm_run_end(self, response: Dict[str, Any], error=None) -> None:
+        """Log the end of an LLM run."""
+
+        if not self.stack:
+            raise LoggerException("No LLMRun found to be logged")
+
+        llm_run = self.stack.pop()
+        if not isinstance(llm_run, LLMRun):
+            self.session.rollback()
+            raise LoggerException("LLMRun end can only be logged after a LLMRun start")
+        llm_run.response = response
+        llm_run.error = error
+        llm_run.end_time = datetime.datetime.utcnow()
+        llm_run.execution_order = self.execution_order
+        self.execution_order += 1
+        if not self.stack:
+            self.session.commit()
+            self.execution_order = 1
+
+    def log_chain_run_start(self, serialized: Dict[str, Any], inputs: Dict[str, Any], **extra: str) -> None:
+        """Log the start of a chain run."""
+
+        chain_run = ChainRun(serialized=serialized, inputs=inputs, extra=extra)
+        if self.stack:
+            if not (isinstance(self.stack[-1], ChainRun) or isinstance(self.stack[-1], ToolRun)):
+                self.session.rollback()
+                raise LoggerException("Nested ChainRun can only be logged inside a ChainRun or ToolRun")
+            self.stack[-1].child_chain_runs.append(chain_run)
+        self.stack.append(chain_run)
+        self.session.add(chain_run)
+
+    def log_chain_run_end(self, outputs: Dict[str, Any], error=None) -> None:
+        """Log the end of a chain run."""
+
+        if not self.stack:
+            raise LoggerException("No ChainRun found to be logged")
+
+        chain_run = self.stack.pop()
+        if not isinstance(chain_run, ChainRun):
+            self.session.rollback()
+            raise LoggerException("ChainRun end can only be logged after a ChainRun start")
+        chain_run.outputs = outputs
+        chain_run.error = error
+        chain_run.end_time = datetime.datetime.utcnow()
+        chain_run.execution_order = self.execution_order
+        self.execution_order += 1
+        if not self.stack:
+            self.session.commit()
+            self.execution_order = 1
+
+    def log_tool_run_start(self, serialized: Dict[str, Any], action: str, inputs: Dict[str, Any], **extra: str) -> None:
+        """Log the start of a tool run."""
+
+        tool_run = ToolRun(serialized=serialized, action=action, inputs=inputs, extra=extra)
+        if self.stack:
+            if not (isinstance(self.stack[-1], ChainRun) or isinstance(self.stack[-1], ToolRun)):
+                self.session.rollback()
+                raise LoggerException("Nested ToolRun can only be logged inside a ChainRun or ToolRun")
+            self.stack[-1].child_tool_runs.append(tool_run)
+        self.stack.append(tool_run)
+        self.session.add(tool_run)
+
+    def log_tool_run_end(self, outputs: Dict[str, Any], error=None) -> None:
+        """Log the end of a tool run."""
+
+        if not self.stack:
+            raise LoggerException("No ToolRun found to be logged")
+
+        tool_run = self.stack.pop()
+        if not isinstance(tool_run, ToolRun):
+            self.session.rollback()
+            raise LoggerException("ToolRun end can only be logged after a ToolRun start")
+        tool_run.outputs = outputs
+        tool_run.error = error
+        tool_run.end_time = datetime.datetime.utcnow()
+        tool_run.execution_order = self.execution_order
+        self.execution_order += 1
+        if not self.stack:
+            self.session.commit()
+            self.execution_order = 1
 

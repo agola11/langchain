@@ -1,5 +1,6 @@
 """Chain that takes in an input and produces an action and action input."""
 from __future__ import annotations
+from langchain.logging import get_logger
 
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, List, Optional, Tuple
@@ -147,7 +148,9 @@ class Agent(Chain, BaseModel, ABC):
             if output.tool in name_to_tool_map:
                 chain = name_to_tool_map[output.tool]
                 # We then call the tool on the tool input to get an observation
+                get_logger().log_tool_run_start({"name": str(chain)[:60] + "..."}, output.tool, {"input": output.tool_input})
                 observation = chain(output.tool_input)
+                get_logger().log_tool_run_end({"output": observation})
                 color = color_mapping[output.tool]
             else:
                 observation = f"{output.tool} is not a valid tool, try another one."
