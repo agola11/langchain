@@ -253,7 +253,6 @@ class SqliteLogger(BaseLogger):
 
     def __new__(cls):
         if cls._instance is None:
-            print('Creating the object')
             cls._instance = super(SqliteLogger, cls).__new__(cls)
             # TODO: make the db initialization string an environment variable
             cls._instance._db = create_engine("sqlite://", echo=False, future=True)
