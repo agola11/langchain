@@ -74,13 +74,13 @@ class BaseLogger(ABC):
         """Log the end of a tool run."""
 
     @abstractmethod
-    def get_llm_runs(self) -> List[LLMRun]:
+    def get_llm_runs(self, top_level_only: bool = False) -> List[LLMRun]:
         """Get all LLM runs."""
 
     @abstractmethod
-    def get_chain_runs(self) -> List[ChainRun]:
+    def get_chain_runs(self, top_level_only: bool = False) -> List[ChainRun]:
         """Get all chain runs."""
 
     @abstractmethod
-    def get_tool_runs(self) -> List[ToolRun]:
+    def get_tool_runs(self, top_level_only: bool = False) -> List[ToolRun]:
         """Get all tool runs."""

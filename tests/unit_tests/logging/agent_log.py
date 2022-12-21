@@ -28,12 +28,15 @@ def main():
     # agent.run("Who won the US Open men's tennis final in 2022? What is the next prime number after his age?")
     agent.run("Who won the US Open men's tennis final in 2022? What is his age raised to the third power??")
 
-    chain_runs = get_logger().get_chain_runs()
+    chain_runs = get_logger().get_chain_runs(top_level_only=True)
+    all_chain_runs = get_logger().get_chain_runs()
     print(chain_runs[0].to_json(indent=2))
     print("___________________________")
     print(chain_runs[1].to_json(indent=2))
     print("___________________________")
-    print(chain_runs[7].to_json(indent=2))
+
+    print(f"Got {len(chain_runs)} top level chain runs")
+    print(f"Got {len(all_chain_runs)} inclusive chain runs")
 
 
 if __name__ == "__main__":

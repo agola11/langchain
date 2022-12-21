@@ -9,7 +9,7 @@ import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from langchain.logging import base
-from sqlalchemy import select
+from sqlalchemy import select, and_
 
 Base = declarative_base()
 
@@ -420,22 +420,36 @@ class SqliteLogger(BaseLogger):
         tool_run.execution_order = self._execution_order
         self._end_log_run()
 
-    def get_llm_runs(self) -> List[base.LLMRun]:
+    def get_llm_runs(self, top_level_only: bool = False) -> List[base.LLMRun]:
         """Return all the LLM runs."""
 
-        llm_runs = self._session.scalars(select(LLMRun)).all()
+        if top_level_only:
+            stmt = select(LLMRun).where(and_(LLMRun.chain_run == None, LLMRun.tool_run == None))
+        else:
+            stmt = select(LLMRun)
+        llm_runs = self._session.scalars(stmt).all()
         return [_convert_llm_run(llm_run) for llm_run in llm_runs]
 
     # TODO: specify nesting, utilize joined loads
-    def get_chain_runs(self) -> List[base.ChainRun]:
+    def get_chain_runs(self, top_level_only: bool = False) -> List[base.ChainRun]:
         """Return all the chain runs."""
 
-        chain_runs = self._session.scalars(select(ChainRun)).all()
+        if top_level_only:
+            stmt = select(ChainRun).where(and_(ChainRun.parent_chain_run == None, ChainRun.parent_tool_run == None))
+        else:
+            stmt = select(ChainRun)
+
+        chain_runs = self._session.scalars(stmt).all()
         return [_deep_convert_run(chain_run) for chain_run in chain_runs]
 
     # TODO: specify nesting, utilize joined loads
-    def get_tool_runs(self) -> List[base.ToolRun]:
+    def get_tool_runs(self, top_level_only: bool = False) -> List[base.ToolRun]:
         """Return all the tool runs."""
 
-        tool_runs = self._session.scalars(select(ToolRun)).all()
+        if top_level_only:
+            stmt = select(ToolRun).where(and_(ToolRun.parent_chain_run == None, ToolRun.parent_tool_run == None))
+        else:
+            stmt = select(ToolRun)
+
+        tool_runs = self._session.scalars(stmt).all()
         return [_deep_convert_run(tool_run) for tool_run in tool_runs]
