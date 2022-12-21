@@ -24,6 +24,7 @@ transformers = {version = "^4", optional = true}
 beautifulsoup4 = {version = "^4", optional = true}
 torch = {version = "^1.13.1", optional = true}
 tiktoken = {version = "^0", optional = true, python="^3.9"}
+dataclasses-json = "^0.5.7"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.2.0"

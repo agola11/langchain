@@ -2,9 +2,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 from datetime import datetime
 
 
+@dataclass_json
 @dataclass
 class Run:
     id: int
@@ -16,12 +18,14 @@ class Run:
     serialized: Dict[str, Any]
 
 
+@dataclass_json
 @dataclass
 class LLMRun(Run):
     prompts: Dict[str, Any]
     response: Dict[str, Any]
 
 
+@dataclass_json
 @dataclass
 class ChainRun(Run):
     inputs: Dict[str, Any]
@@ -31,6 +35,7 @@ class ChainRun(Run):
     child_tool_runs: List[Run]
 
 
+@dataclass_json
 @dataclass
 class ToolRun(Run):
     inputs: Dict[str, Any]

@@ -29,11 +29,11 @@ def main():
     agent.run("Who won the US Open men's tennis final in 2022? What is his age raised to the third power??")
 
     chain_runs = get_logger().get_chain_runs()
-    print_base_run(chain_runs[0], "")
+    print(chain_runs[0].to_json(indent=2))
     print("___________________________")
-    print_base_run(chain_runs[1], "")
+    print(chain_runs[1].to_json(indent=2))
     print("___________________________")
-    print_base_run(chain_runs[7], "")
+    print(chain_runs[7].to_json(indent=2))
 
 
 if __name__ == "__main__":
