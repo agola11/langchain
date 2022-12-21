@@ -1,13 +1,15 @@
 from langchain.logging.base import BaseLogger
 from sqlalchemy import Column, ForeignKey, Integer, Table, DateTime, String, Boolean
 from sqlalchemy.orm import declarative_base, relationship
-from typing import Union, Any, Dict, List
+from typing import Union, Any, Dict, List, Tuple
 
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import declarative_mixin
 import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from langchain.logging import base
+from sqlalchemy import select
 
 Base = declarative_base()
 
@@ -219,7 +221,6 @@ def main() -> None:
         session.commit()
 
     from sqlalchemy.orm import joinedload
-    from sqlalchemy import select
 
     stmt = select(ChainRun).where(ChainRun.id == 1).options(joinedload(ChainRun.child_llm_runs),
                                                             joinedload(ChainRun.child_chain_runs).joinedload(
@@ -238,12 +239,79 @@ def print_run(run: Union[LLMRun, ChainRun, ToolRun], tabs: str) -> None:
             print_run(child_run, tabs + "\t")
 
 
+def print_base_run(run: base.Run, tabs: str) -> None:
+    print(f"{tabs}Run: {run}")
+    if isinstance(run, base.ChainRun) or isinstance(run, base.ToolRun):
+        all_runs = run.child_chain_runs + run.child_llm_runs + run.child_tool_runs
+        all_runs.sort(key=lambda x: x.execution_order)
+        for child_run in all_runs:
+            print_base_run(child_run, tabs + "\t")
+
+
 if __name__ == "__main__":
     main()
 
 
 class LoggerException(Exception):
     """Base class for exceptions in logging module."""
+
+
+def _deep_convert_run(run) -> Union[base.ChainRun, base.ToolRun]:
+    """Get all the nested runs of a run."""
+
+    # Get all the nested runs of a run.
+    child_llm_runs = [_convert_llm_run(llm_run) for llm_run in run.child_llm_runs]
+    child_chain_runs = run.child_chain_runs
+    child_tool_runs = run.child_tool_runs
+    nested_chain_runs = [_deep_convert_run(cr) for cr in child_chain_runs]
+    nested_tool_runs = [_deep_convert_run(tr) for tr in child_tool_runs]
+    if isinstance(run, ChainRun):
+        return base.ChainRun(
+            id=run.id,
+            start_time=run.start_time,
+            end_time=run.end_time,
+            extra=run.extra,
+            error=run.error,
+            execution_order=run.execution_order,
+            serialized=run.serialized,
+            inputs=run.inputs,
+            outputs=run.outputs,
+            child_llm_runs=child_llm_runs,
+            child_chain_runs=nested_chain_runs,
+            child_tool_runs=nested_tool_runs
+        )
+    elif isinstance(run, ToolRun):
+        return base.ToolRun(
+            id=run.id,
+            start_time=run.start_time,
+            end_time=run.end_time,
+            extra=run.extra,
+            error=run.error,
+            execution_order=run.execution_order,
+            serialized=run.serialized,
+            inputs=run.inputs,
+            outputs=run.outputs,
+            action=run.action,
+            child_llm_runs=child_llm_runs,
+            child_chain_runs=nested_chain_runs,
+            child_tool_runs=nested_tool_runs
+        )
+
+
+def _convert_llm_run(llm_run) -> base.LLMRun:
+    """Convert an LLMRun to a base.LLMRun."""
+
+    return base.LLMRun(
+            id=llm_run.id,
+            start_time=llm_run.start_time,
+            end_time=llm_run.end_time,
+            extra=llm_run.extra,
+            error=llm_run.error,
+            execution_order=llm_run.execution_order,
+            serialized=llm_run.serialized,
+            prompts=llm_run.prompts,
+            response=llm_run.response,
+        )
 
 
 class SqliteLogger(BaseLogger):
@@ -352,3 +420,22 @@ class SqliteLogger(BaseLogger):
         tool_run.execution_order = self._execution_order
         self._end_log_run()
 
+    def get_llm_runs(self) -> List[base.LLMRun]:
+        """Return all the LLM runs."""
+
+        llm_runs = self._session.scalars(select(LLMRun)).all()
+        return [_convert_llm_run(llm_run) for llm_run in llm_runs]
+
+    # TODO: specify nesting, utilize joined loads
+    def get_chain_runs(self) -> List[base.ChainRun]:
+        """Return all the chain runs."""
+
+        chain_runs = self._session.scalars(select(ChainRun)).all()
+        return [_deep_convert_run(chain_run) for chain_run in chain_runs]
+
+    # TODO: specify nesting, utilize joined loads
+    def get_tool_runs(self) -> List[base.ToolRun]:
+        """Return all the tool runs."""
+
+        tool_runs = self._session.scalars(select(ToolRun)).all()
+        return [_deep_convert_run(tool_run) for tool_run in tool_runs]
