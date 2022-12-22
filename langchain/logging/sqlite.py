@@ -175,9 +175,8 @@ class SqliteLogger(BaseLogger):
         if not isinstance(llm_run, LLMRun):
             session.rollback()
             raise LoggerException("LLMRun end can only be logged after a LLMRun start")
-        llm_run.response = response
-        llm_run.error = error
-        llm_run.end_time = datetime.datetime.utcnow()
+
+        llm_run.update(response=response, error=error, end_time=datetime.datetime.utcnow())
         _end_log_run()
 
     def log_chain_run_start(
@@ -205,9 +204,8 @@ class SqliteLogger(BaseLogger):
             raise LoggerException(
                 "ChainRun end can only be logged after a ChainRun start"
             )
-        chain_run.outputs = outputs
-        chain_run.error = error
-        chain_run.end_time = datetime.datetime.utcnow()
+
+        chain_run.update(outputs=outputs, error=error, end_time=datetime.datetime.utcnow())
         _end_log_run()
 
     def log_tool_run_start(
@@ -240,9 +238,7 @@ class SqliteLogger(BaseLogger):
             raise LoggerException(
                 "ToolRun end can only be logged after a ToolRun start"
             )
-        tool_run.outputs = outputs
-        tool_run.error = error
-        tool_run.end_time = datetime.datetime.utcnow()
+        tool_run.update(outputs=outputs, error=error, end_time=datetime.datetime.utcnow())
         _end_log_run()
 
     def get_llm_runs(self, top_level_only: bool = False) -> List[base.LLMRun]:
