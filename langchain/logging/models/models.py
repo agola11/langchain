@@ -1,29 +1,21 @@
-from sqlalchemy import create_engine
 from sqlalchemy.exc import DatabaseError
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 import os
-from typing import Any
 import datetime
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Union
 
 from sqlalchemy import (
-    Boolean,
     Column,
     DateTime,
     ForeignKey,
     Integer,
     String,
     Table,
-    and_,
     create_engine,
     select,
 )
 from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.orm import Session, declarative_base, declarative_mixin, relationship
-
-from langchain.logging import base
-from langchain.logging.base import BaseLogger
+from sqlalchemy.orm import declarative_base, declarative_mixin, relationship
 
 
 if not os.environ.get("DATABASE_URL"):
@@ -83,6 +75,12 @@ class RunMixin:
     error = Column(JSON, default=None)
     execution_order = Column(Integer, default=1)
     serialized = Column(JSON)
+
+
+# Assumptions:
+# 1. A chain run can have multiple LLM runs, chain runs, and tool runs
+# 2. A tool run can have multiple LLM runs, chain runs, and tool runs
+# 3. An LLM cannot have any child runs
 
 
 class LLMRun(RunModel, RunMixin):
@@ -316,8 +314,8 @@ def main() -> None:
             joinedload(ChainRun.child_tool_runs),
         )
     )
-    zeroshot_chain = session.scalars(stmt).unique().one()
-    _print_run(zeroshot_chain, "")
+    zero_shot_chain = session.scalars(stmt).unique().one()
+    _print_run(zero_shot_chain, "")
 
 
 if __name__ == "__main__":
