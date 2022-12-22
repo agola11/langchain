@@ -1,6 +1,6 @@
 """Base interface for logging runs."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 from datetime import datetime
@@ -75,12 +75,24 @@ class BaseLogger(ABC):
 
     @abstractmethod
     def get_llm_runs(self, top_level_only: bool = False) -> List[LLMRun]:
-        """Get all LLM runs."""
+        """Return all the LLM runs."""
 
     @abstractmethod
     def get_chain_runs(self, top_level_only: bool = False) -> List[ChainRun]:
-        """Get all chain runs."""
+        """Return all the chain runs."""
 
     @abstractmethod
     def get_tool_runs(self, top_level_only: bool = False) -> List[ToolRun]:
-        """Get all tool runs."""
+        """Return all the tool runs."""
+
+    @abstractmethod
+    def get_llm_run(self, run_id: int) -> LLMRun:
+        """Return a specific LLM run."""
+
+    @abstractmethod
+    def get_chain_run(self, run_id: int) -> ChainRun:
+        """Return a specific chain run."""
+
+    @abstractmethod
+    def get_tool_run(self, run_id: int) -> ToolRun:
+        """Return a specific tool run."""

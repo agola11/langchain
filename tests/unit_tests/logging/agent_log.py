@@ -38,6 +38,8 @@ def main():
     print(f"Got {len(chain_runs)} top level chain runs")
     print(f"Got {len(all_chain_runs)} inclusive chain runs")
 
+    print(get_logger().get_chain_run(chain_runs[0].id).to_json(indent=2))
+
 
 if __name__ == "__main__":
     main()
