@@ -1,20 +1,7 @@
 import datetime
 from typing import Any, Dict, List, Tuple, Type, Union
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    Table,
-    and_,
-    create_engine,
-    select,
-)
-from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.orm import Session, declarative_base, declarative_mixin, relationship
+from sqlalchemy import and_, select
 
 from langchain.logging import base
 from langchain.logging.base import BaseLogger
