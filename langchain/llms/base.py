@@ -1,6 +1,5 @@
 """Base interface for large language models to expose."""
 import json
-from langchain.logging import get_logger
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Union
@@ -9,6 +8,7 @@ import yaml
 from pydantic import BaseModel, Extra
 
 import langchain
+from langchain.logging import get_logger
 from langchain.schema import Generation
 
 
