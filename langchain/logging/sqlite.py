@@ -113,7 +113,7 @@ def _end_log_run() -> None:
 
 def _get_runs(
     run_type: Type[Union[LLMRun, ChainRun, ToolRun]], top_level_only: bool
-) -> List[Union[LLMRun, ChainRun, ToolRun]]:
+) -> List[Union[base.LLMRun, base.ChainRun, base.ToolRun]]:
     """Get all runs of a given type."""
 
     if top_level_only:
@@ -133,7 +133,7 @@ def _get_runs(
 
 def _get_run(
     run_type: Type[Union[LLMRun, ChainRun, ToolRun]], run_id: int
-) -> Union[LLMRun, ChainRun, ToolRun]:
+) -> Union[base.LLMRun, base.ChainRun, base.ToolRun]:
     """Get a specific run of a given type."""
 
     run = session.scalars(select(run_type).where(run_type.id == run_id)).first()
