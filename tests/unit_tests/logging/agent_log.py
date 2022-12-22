@@ -2,7 +2,6 @@ from langchain import LLMMathChain, SerpAPIWrapper
 from langchain.agents import Tool, initialize_agent
 from langchain.llms import OpenAI
 from langchain.logging import get_logger
-from langchain.logging.sqlite import print_base_run
 
 
 def main():
