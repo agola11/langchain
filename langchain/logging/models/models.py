@@ -1,7 +1,5 @@
-from sqlalchemy.exc import DatabaseError
-from sqlalchemy.orm import scoped_session, sessionmaker
-import os
 import datetime
+import os
 from typing import Any, Union
 
 from sqlalchemy import (
@@ -15,8 +13,14 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.orm import declarative_base, declarative_mixin, relationship
-
+from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import (
+    declarative_base,
+    declarative_mixin,
+    relationship,
+    scoped_session,
+    sessionmaker,
+)
 
 if not os.environ.get("DATABASE_URL"):
     engine = create_engine("sqlite://")

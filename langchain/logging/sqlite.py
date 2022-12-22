@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, declarative_base, declarative_mixin, relatio
 
 from langchain.logging import base
 from langchain.logging.base import BaseLogger
-from langchain.logging.models.models import LLMRun, ChainRun, ToolRun, session
+from langchain.logging.models.models import ChainRun, LLMRun, ToolRun, session
 
 
 class LoggerException(Exception):
@@ -125,7 +125,7 @@ def _end_log_run() -> None:
 
 
 def _get_runs(
-        run_type: Type[Union[LLMRun, ChainRun, ToolRun]], top_level_only: bool
+    run_type: Type[Union[LLMRun, ChainRun, ToolRun]], top_level_only: bool
 ) -> List[Union[LLMRun, ChainRun, ToolRun]]:
     """Get all runs of a given type."""
 
@@ -141,20 +141,15 @@ def _get_runs(
                 )
             ).all()
         ]
-    return [
-        _deep_convert_run(run)
-        for run in session.scalars(select(run_type)).all()
-    ]
+    return [_deep_convert_run(run) for run in session.scalars(select(run_type)).all()]
 
 
 def _get_run(
-        run_type: Type[Union[LLMRun, ChainRun, ToolRun]], run_id: int
+    run_type: Type[Union[LLMRun, ChainRun, ToolRun]], run_id: int
 ) -> Union[LLMRun, ChainRun, ToolRun]:
     """Get a specific run of a given type."""
 
-    run = session.scalars(
-        select(run_type).where(run_type.id == run_id)
-    ).first()
+    run = session.scalars(select(run_type).where(run_type.id == run_id)).first()
     if run is None:
         raise LoggerException(f"No {run_type.__name__} found with id {run_id}")
     return _deep_convert_run(run)
