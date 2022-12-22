@@ -306,6 +306,9 @@ def _deep_convert_run(
     child_tool_runs = run.child_tool_runs
     nested_chain_runs = [_deep_convert_run(cr) for cr in child_chain_runs]
     nested_tool_runs = [_deep_convert_run(tr) for tr in child_tool_runs]
+
+    child_runs = child_llm_runs + nested_chain_runs + nested_tool_runs
+    child_runs.sort(key=lambda x: x.execution_order)
     if isinstance(run, ChainRun):
         return base.ChainRun(
             id=run.id,
@@ -317,9 +320,7 @@ def _deep_convert_run(
             serialized=run.serialized,
             inputs=run.inputs,
             outputs=run.outputs,
-            child_llm_runs=child_llm_runs,
-            child_chain_runs=nested_chain_runs,
-            child_tool_runs=nested_tool_runs,
+            child_runs=child_runs,
         )
     elif isinstance(run, ToolRun):
         return base.ToolRun(
@@ -333,9 +334,7 @@ def _deep_convert_run(
             inputs=run.inputs,
             outputs=run.outputs,
             action=run.action,
-            child_llm_runs=child_llm_runs,
-            child_chain_runs=nested_chain_runs,
-            child_tool_runs=nested_tool_runs,
+            child_runs=child_runs,
         )
 
 

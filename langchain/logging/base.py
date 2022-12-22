@@ -31,9 +31,7 @@ class LLMRun(Run):
 class ChainRun(Run):
     inputs: Dict[str, Any]
     outputs: Dict[str, Any]
-    child_llm_runs: List[Run]
-    child_chain_runs: List[Run]
-    child_tool_runs: List[Run]
+    child_runs: List[Run]
 
 
 @dataclass_json
@@ -42,9 +40,7 @@ class ToolRun(Run):
     inputs: Dict[str, Any]
     outputs: Dict[str, Any]
     action: str
-    child_llm_runs: List[Run]
-    child_chain_runs: List[Run]
-    child_tool_runs: List[Run]
+    child_runs: List[Run]
 
 
 class BaseLogger(ABC):
