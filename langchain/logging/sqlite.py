@@ -1,4 +1,5 @@
 import datetime
+import threading
 from typing import Any, Dict, List, Tuple, Type, Union
 
 from sqlalchemy import and_, select
@@ -6,6 +7,7 @@ from sqlalchemy import and_, select
 from langchain.logging import base
 from langchain.logging.base import BaseLogger
 from langchain.logging.models.models import ChainRun, LLMRun, ToolRun, session
+from dataclasses import dataclass, field
 
 
 class LoggerException(Exception):
@@ -68,49 +70,6 @@ def _deep_convert_run(
         )
 
 
-def _log_run_start(run: Union[LLMRun, ChainRun, ToolRun]) -> None:
-    """Log the start of a run."""
-
-    try:
-        session.stack
-    except AttributeError:
-        session.stack = []
-
-    try:
-        session.execution_order
-    except AttributeError:
-        session.execution_order = 1
-
-    run.execution_order = session.execution_order
-    session.execution_order += 1
-
-    if len(session.stack):
-        if not (
-            isinstance(session.stack[-1], ChainRun)
-            or isinstance(session.stack[-1], ToolRun)
-        ):
-            session.rollback()
-            raise LoggerException(
-                f"Nested {run.__class__.__name__} can only be logged inside a ChainRun or ToolRun"
-            )
-        if isinstance(run, LLMRun):
-            session.stack[-1].child_llm_runs.append(run)
-        elif isinstance(run, ChainRun):
-            session.stack[-1].child_chain_runs.append(run)
-        else:
-            session.stack[-1].child_tool_runs.append(run)
-    session.stack.append(run)
-    run.save()
-
-
-def _end_log_run() -> None:
-    """Call at the end of a run."""
-
-    if not session.stack:
-        session.commit()
-        session.execution_order = 1
-
-
 def _get_runs(
     run_type: Type[Union[LLMRun, ChainRun, ToolRun]], top_level_only: bool
 ) -> List[Union[base.LLMRun, base.ChainRun, base.ToolRun]]:
@@ -142,6 +101,14 @@ def _get_run(
     return _deep_convert_run(run)
 
 
+@dataclass
+class LoggerStack(threading.local):
+    """A stack of runs used for logging."""
+
+    stack: List[Union[LLMRun, ChainRun, ToolRun]] = field(default_factory=list)
+    execution_order: int = 1
+
+
 class SqliteLogger(BaseLogger):
     """A logger that stores the logs in a sqlite database."""
 
@@ -150,7 +117,39 @@ class SqliteLogger(BaseLogger):
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(SqliteLogger, cls).__new__(cls)
+            cls._instance._logger_stack = LoggerStack()
         return cls._instance
+
+    def _log_run_start(self, run: Union[LLMRun, ChainRun, ToolRun]) -> None:
+        """Log the start of a run."""
+
+        run.execution_order = self._logger_stack.execution_order
+        self._logger_stack.execution_order += 1
+
+        if self._logger_stack.stack:
+            if not (
+                    isinstance(self._logger_stack.stack[-1], ChainRun)
+                    or isinstance(self._logger_stack.stack[-1], ToolRun)
+            ):
+                session.rollback()
+                raise LoggerException(
+                    f"Nested {run.__class__.__name__} can only be logged inside a ChainRun or ToolRun"
+                )
+            if isinstance(run, LLMRun):
+                self._logger_stack.stack[-1].child_llm_runs.append(run)
+            elif isinstance(run, ChainRun):
+                self._logger_stack.stack[-1].child_chain_runs.append(run)
+            else:
+                self._logger_stack.stack[-1].child_tool_runs.append(run)
+        self._logger_stack.stack.append(run)
+        run.save()
+
+    def _end_log_run(self) -> None:
+        """Call at the end of a run."""
+
+        if not self._logger_stack.stack:
+            session.commit()
+            self._logger_stack.execution_order = 1
 
     def log_llm_run_start(
         self, serialized: Dict[str, Any], prompts: List[str], **extra: str
@@ -163,21 +162,21 @@ class SqliteLogger(BaseLogger):
             extra=extra,
             start_time=datetime.datetime.utcnow(),
         )
-        _log_run_start(llm_run)
+        self._log_run_start(llm_run)
 
     def log_llm_run_end(self, response: Dict[str, Any], error=None) -> None:
         """Log the end of an LLM run."""
 
-        if not session.stack:
+        if not self._logger_stack.stack:
             raise LoggerException("No LLMRun found to be logged")
 
-        llm_run = session.stack.pop()
+        llm_run = self._logger_stack.stack.pop()
         if not isinstance(llm_run, LLMRun):
             session.rollback()
             raise LoggerException("LLMRun end can only be logged after a LLMRun start")
 
         llm_run.update(response=response, error=error, end_time=datetime.datetime.utcnow())
-        _end_log_run()
+        self._end_log_run()
 
     def log_chain_run_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **extra: str
@@ -190,15 +189,15 @@ class SqliteLogger(BaseLogger):
             extra=extra,
             start_time=datetime.datetime.utcnow(),
         )
-        _log_run_start(chain_run)
+        self._log_run_start(chain_run)
 
     def log_chain_run_end(self, outputs: Dict[str, Any], error=None) -> None:
         """Log the end of a chain run."""
 
-        if not session.stack:
+        if not self._logger_stack.stack:
             raise LoggerException("No ChainRun found to be logged")
 
-        chain_run = session.stack.pop()
+        chain_run = self._logger_stack.stack.pop()
         if not isinstance(chain_run, ChainRun):
             session.rollback()
             raise LoggerException(
@@ -206,7 +205,7 @@ class SqliteLogger(BaseLogger):
             )
 
         chain_run.update(outputs=outputs, error=error, end_time=datetime.datetime.utcnow())
-        _end_log_run()
+        self._end_log_run()
 
     def log_tool_run_start(
         self,
@@ -224,22 +223,22 @@ class SqliteLogger(BaseLogger):
             extra=extra,
             start_time=datetime.datetime.utcnow(),
         )
-        _log_run_start(tool_run)
+        self._log_run_start(tool_run)
 
     def log_tool_run_end(self, outputs: Dict[str, Any], error=None) -> None:
         """Log the end of a tool run."""
 
-        if not session.stack:
+        if not self._logger_stack.stack:
             raise LoggerException("No ToolRun found to be logged")
 
-        tool_run = session.stack.pop()
+        tool_run = self._logger_stack.stack.pop()
         if not isinstance(tool_run, ToolRun):
             session.rollback()
             raise LoggerException(
                 "ToolRun end can only be logged after a ToolRun start"
             )
         tool_run.update(outputs=outputs, error=error, end_time=datetime.datetime.utcnow())
-        _end_log_run()
+        self._end_log_run()
 
     def get_llm_runs(self, top_level_only: bool = False) -> List[base.LLMRun]:
         """Return all the LLM runs."""

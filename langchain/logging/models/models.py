@@ -21,9 +21,14 @@ from sqlalchemy.orm import (
     scoped_session,
     sessionmaker,
 )
+from sqlalchemy.pool import StaticPool
 
 if not os.environ.get("DATABASE_URL"):
-    engine = create_engine("sqlite://")
+    engine = create_engine(
+        "sqlite:///foo.db",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
 else:
     engine = create_engine(os.environ.get("DATABASE_URL"))
 
