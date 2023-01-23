@@ -444,9 +444,8 @@ class BaseLangChainTracer(BaseTracer, ABC):
                 f"{self._endpoint}/sessions",
                 headers=self._headers,
             )
-            # Get the first id
-            session_id = r.json()[0]["id"]
-            tracer_session = TracerSession(id=session_id)
+            # Use the first session result
+            tracer_session = TracerSession(**r.json()[0])
             self._session = tracer_session
             return tracer_session
         except:
